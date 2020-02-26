@@ -127,3 +127,9 @@ dmypy.json
 
 # Pyre type checker
 .pyre/
+
+datagen/
+datasets/
+
+models/TrainYourOwnYOLO
+.vscode/settings.json
