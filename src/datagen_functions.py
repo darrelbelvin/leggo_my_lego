@@ -5,6 +5,8 @@ import os
 import subprocess
 import numpy as np
 import pandas as pd
+from collections import OrderedDict
+
 
 def random_three_vector(v_scale=300):
     """
@@ -146,23 +148,34 @@ def randomize_pov_files(path, ini_file):
     line_modifications, camera_vector = None, None
     pov_files = os.listdir(path)
     pov_files = [file for file in pov_files if file[-4:] == '.pov']
+
+    part_sets = {
+        '': ['LEGS', 'TORSO', 'HEAD', 'HATS'],
+        'legolas_': ['TORSO', 'HEAD', 'HATS'],
+        'floating_head_':    ['HEAD', 'HATS'],
+        'bare_head_':        ['HEAD']
+    }
+
+    # head: bare_head
+    # hats: floating_head - bare_head
+    # torso: legolas_ - floating_head
+    # legs: full - legolas_
+    # full: full
+
     for filename in pov_files:
         camera_vector = random_three_vector()
-        line_modifications = modify_lines(camera_vector)
-        with open(f'{path}{filename}', 'r+') as file:
+        with open(f'{path}{filename}', 'r') as file:
             lines = file.readlines()
-            x_data = extract_data(lines)
-            new_lines = list(map(lambda l: replace(l, line_modifications), lines))
-            new_lines = comment_parts(new_lines, categories, x_data, ['HEAD', 'LEGS'])
-            #these_add_lines = add_lines("1 - Copy.png")
-            #if new_lines[-1] != these_add_lines[-1]:
-            #    new_lines.append('\n')
-            #    new_lines.extend(these_add_lines)
-            #else:
-            #    new_lines[-len(these_add_lines):] = these_add_lines
-            file.seek(0)
-            file.truncate()
-            file.writelines(new_lines)
+        
+        x_data = extract_data(lines)
+        line_modifications = modify_lines(camera_vector)
+        new_lines = list(map(lambda l: replace(l, line_modifications), lines))
+        
+        for prefix, allowed_parts in part_sets.items():
+            new_lines = comment_parts(new_lines, categories, x_data, allowed_parts)
+            with open(f'{path}{prefix}{filename}', 'w') as file:
+                file.writelines(new_lines)
+        
         x_data.update({'filename' : filename, 'camera_vector' : camera_vector})
         meta = meta.append(x_data, ignore_index=True)
     
@@ -251,6 +264,73 @@ def get_part_categories(ini_filename, abridged=False):
         return parts.reset_index().set_index('Number')
 
     return parts
+
+
+def get_bboxes(basename, path, flatten=True, include_combos=False):
+    if not basename.endswith('.png'):
+        basename = basename.split('.')
+        basename[-1] = 'png'
+        basename = '.'.join(basename)
+    img_base = io.imread(path + basename)
+    img_legolas = io.imread(path + 'legolas_' + basename)
+    img_floating = io.imread(path + 'floating_head_' + basename)
+    img_head = io.imread(path + 'bare_head_' + basename)
+
+    combos = OrderedDict({
+        'LEGS': [img_base, img_legolas],
+        'TORSO': [img_legolas, img_floating],
+        'HEAD': [img_head],
+        'HATS': [img_floating, img_head],
+        'MINIFIG': [img_base]
+    })
+
+    bboxes = []
+    for i, item in enumerate(combos.items()):
+        name, combo = item
+        if len(combo) == 2:
+            img = np.any(~np.isclose(combo[0], combo[1], atol=50), axis=-1)
+        else:
+            img = combo[0].copy()
+        xmin, xmax, ymin, ymax = get_bounding_box(img)
+        if xmin != -1:
+            bboxes.append([xmin, ymin, xmax, ymax, i])
+        combos[name] = img
+    
+    if flatten:
+        bboxes = list(np.array(bboxes).flatten())
+    
+    if include_combos:
+        return bboxes, combos
+    return bboxes
+
+
+def get_bounding_box(img, path=None):
+    if path is not None:
+        img = img = io.imread(path + img)
+    if len(img.shape) == 3:
+        alpha = img[:,:,3]
+    else:
+        alpha = img
+    if not alpha.any():
+        return -1,-1,-1,-1
+    x = np.argwhere(alpha.any(axis=0))[[0,-1]].flatten()
+    y = np.argwhere(alpha.any(axis=1))[[0,-1]].flatten()
+    return x[0], x[1], y[0], y[1]
+
+
+
+def move_ext_files(path, new_path, ext, add_suffix = ""):
+    assert path != new_path
+    files = os.listdir(path)
+    files = [file.rpartition('.') for file in files]
+    files = [file for file in files if file[-1] == ext]
+    successful_files = []
+    for f in files:
+        new_file = f[0] + add_suffix + f[1] + f[2]
+        os.rename(path + ''.join(f) ,
+                  new_path + new_file, )
+        successful_files.append(new_file)
+    return successful_files
 
 
 if __name__ == "__main__":
