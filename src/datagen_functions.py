@@ -2,9 +2,11 @@
 A collection of functions used to create a dataset of lego minifigures using MCad, LDView, and POVRay
 """
 import os
+import imageio as io
 import subprocess
 import numpy as np
 import pandas as pd
+import pickle
 from collections import OrderedDict
 
 
@@ -14,28 +16,35 @@ def random_three_vector(v_scale=300):
     Algo from http://stackoverflow.com/questions/5408276/python-uniform-spherical-distribution
     :return:
     """
-    phi = np.random.uniform(0,np.pi*2)
-    costheta = np.random.uniform(-1, 1)
+    phi = np.random.normal(np.pi, np.pi*0.125)
+    costheta = np.random.normal(0, np.cos(np.pi*0.375))
+
+    # phi = np.random.uniform(0,np.pi*2)
+    # costheta = np.random.uniform(-1, 1)
 
     theta = np.arccos(costheta)
     _x = np.sin(theta) * np.cos(phi)
     _y = np.sin(theta) * np.sin(phi)
     _z = np.cos(theta)
-    return np.array((_x, _y, _z)) * v_scale
 
-def modify_lines(camera_vector):
+    #return np.array((0,0,-1)) * v_scale
+    return np.array((_y, _z, _x)) * v_scale
+
+
+def modify_lines(camera_vector, sky_vector):
     """
     returns a dictionary of lines to be modified.
     Keys are the beginning of the lines and values are the new endings
     """
     return {
         '#declare LDXCameraLoc =': f' < {", ".join(camera_vector.astype(str))} >;',
-        '#declare LDXCameraSky =': ' <0,-1,0>;',
+        '#declare LDXCameraSky =': f' < {", ".join(sky_vector.astype(str))} >;', # 0,-1,0>;',
         '#declare LDXFloor = ': '0;',
         # '#declare LDXFloorLoc =': ' LDXMaxY + 10;',
         '#declare LDXCameraLookAt =': ' LDXCenter;',
-        '	angle ': '40',
+        '	angle ': '30',
     }
+
 
 def add_lines_for_background(bg):
     """
@@ -57,6 +66,7 @@ def add_lines_for_background(bg):
         '\n',
         'Screen_Plane ( MyScreenTexture, 300, <-1,-1>, <1,1> )'
     ]
+
 
 def extract_data(lines):
     """
@@ -113,6 +123,7 @@ def extract_data(lines):
 
     return data
 
+
 def part_name(s):
     s = s.strip()
     if s.endswith('_dot_dat'):
@@ -137,6 +148,7 @@ def replace(line, line_modifications):
         if line[:len(k)] == k:
             return k + v + '\n'
     return line
+
 
 def randomize_pov_files(path, ini_file):
     """
@@ -164,11 +176,13 @@ def randomize_pov_files(path, ini_file):
 
     for filename in pov_files:
         camera_vector = random_three_vector()
+        sky_vector = np.array([np.random.normal(0, 0.5), -1, 0])
+
         with open(f'{path}{filename}', 'r') as file:
             lines = file.readlines()
         
         x_data = extract_data(lines)
-        line_modifications = modify_lines(camera_vector)
+        line_modifications = modify_lines(camera_vector, sky_vector)
         new_lines = list(map(lambda l: replace(l, line_modifications), lines))
         
         for prefix, allowed_parts in part_sets.items():
@@ -176,11 +190,12 @@ def randomize_pov_files(path, ini_file):
             with open(f'{path}{prefix}{filename}', 'w') as file:
                 file.writelines(new_lines)
         
-        x_data.update({'filename' : filename, 'camera_vector' : camera_vector})
+        x_data.update({'filename' : filename, 'camera_vector' : camera_vector, 'sky_vector': sky_vector})
         meta = meta.append(x_data, ignore_index=True)
     
     meta['part_list_start'] = meta['part_list_start'].astype(int)
     return meta
+
 
 def render_pov_files(path):
     pov_files = os.listdir(path)
@@ -198,6 +213,7 @@ def find_next(lines, i_start, target):
         if lines[i].rstrip('\n').lstrip('/') == target:
             return i
     return len(lines) + 1
+
 
 def set_comment(lines, start, end, comment):
     for i in range(start, end + 1):
@@ -318,6 +334,42 @@ def get_bounding_box(img, path=None):
     return x[0], x[1], y[0], y[1]
 
 
+def delete_prefixed_files(path, prefixes = ['legolas_', 'floating_head_', 'bare_head_']):
+    files = os.listdir(path)
+    for f in files:
+        for pf in prefixes:
+            if f.startswith(pf):
+                os.remove(path + f)
+
+
+def run_pov_rounds(run_path, output_path, ini_file, range_begin = 0, range_end = 6, meta = None):
+    if meta is None:
+        if os.path.exists(output_path + 'metadata.pkl'):
+            meta = pickle.load(open(output_path + 'metadata.pkl', 'rb'))
+        else:
+            meta = pd.DataFrame()
+    
+    delete_prefixed_files(run_path)
+
+    for i in range(range_begin, range_end):
+        meta_add = randomize_pov_files(run_path, ini_file)
+        render_pov_files(run_path)
+        successful_images = meta_add['filename'].apply(lambda f: os.path.exists(run_path + f[:-4] + '.png'))
+        meta_add = meta_add.loc[successful_images]
+
+        meta_add['bboxes'] = meta_add['filename'].apply(lambda f: f[:-4] + '.png').apply(lambda f: extend_ret([f], get_bboxes(f, run_path)))
+        delete_prefixed_files(run_path)
+        
+        successful_images = move_ext_files(run_path, output_path, 'png', f'-r{i}')
+        meta_add['filename'] = meta_add['filename'].apply(lambda s: s[:-4] + f'-r{i}.png')
+        meta_add = meta_add[meta_add['filename'].isin(successful_images)]
+        
+        meta = meta.append(meta_add, ignore_index=True)
+        pickle.dump(meta, open(output_path + 'metadata.pkl', 'wb'))
+        print(f'round {i} of {range_end - 1} completed')
+    
+    return meta
+
 
 def move_ext_files(path, new_path, ext, add_suffix = ""):
     assert path != new_path
@@ -331,6 +383,11 @@ def move_ext_files(path, new_path, ext, add_suffix = ""):
                   new_path + new_file, )
         successful_files.append(new_file)
     return successful_files
+
+
+def extend_ret(l1, l2):
+    l1.extend(l2)
+    return l1
 
 
 if __name__ == "__main__":
