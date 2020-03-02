@@ -115,7 +115,10 @@ def draw_bbox(image, bboxes, classes, show_label=True, probability=True):
     random.seed(None)
 
     for i, bbox in enumerate(bboxes):
-        coor = np.array(bbox[:4], dtype=np.int32)
+        if type(bbox[0]) == np.float64:
+            coor = np.array(bbox[:4] * image_h, dtype=np.int32)
+        else:
+            coor = np.array(bbox[:4], dtype=np.int32)
         fontScale = 0.5
         if probability:
             score = bbox[4]

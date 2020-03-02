@@ -174,7 +174,7 @@ def randomize_pov_files(path, ini_file):
     # legs: full - legolas_
     # full: full
 
-    for filename in pov_files:
+    for i, filename in enumerate(pov_files):
         camera_vector = random_three_vector()
         sky_vector = np.array([np.random.normal(0, 0.5), -1, 0])
 
@@ -192,6 +192,8 @@ def randomize_pov_files(path, ini_file):
         
         x_data.update({'filename' : filename, 'camera_vector' : camera_vector, 'sky_vector': sky_vector})
         meta = meta.append(x_data, ignore_index=True)
+
+        print(f'rendering {i} of {len(pov_files)}', end='\r')
     
     meta['part_list_start'] = meta['part_list_start'].astype(int)
     return meta
@@ -200,10 +202,10 @@ def randomize_pov_files(path, ini_file):
 def render_pov_files(path):
     pov_files = os.listdir(path)
     pov_files = [file for file in pov_files if file[-4:] == '.pov']
-    for filename in pov_files:
+    for i, filename in enumerate(pov_files):
         #cmd = f'{povray_path} "{path}povray.ini" /RENDER "{path}{filename}" /NR /EXIT'
         cmd = f'povray "{path}povray.ini" "{path}{filename}"'
-        #print(cmd)
+        print(f'rendering {i} of {len(pov_files)}', end='\r')
         subprocess.call(cmd, shell=True)
         #!$cmd
 
