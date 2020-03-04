@@ -311,7 +311,7 @@ def get_bboxes(basename, path, flatten=True, include_combos=False):
             img = combo[0].copy()
         xmin, xmax, ymin, ymax = get_bounding_box(img)
         if xmin != -1:
-            bboxes.append([xmin, ymin, xmax, ymax, i])
+            bboxes.append([xmin, ymin, xmax, ymax, i+1])
         combos[name] = img
     
     if flatten:

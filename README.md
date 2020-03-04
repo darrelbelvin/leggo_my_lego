@@ -1,10 +1,8 @@
 # leggo_my_legs
 
-Leggo my Legs is an android app that detects Lego minifigures utilizing a YOLOv3 model. I used transfer learning to adjust the model to our training data.
+Leggo my Legs is an android app that detects Lego minifigures utilizing a neural network. I used transfer learning to adjust the model to our training data.
 
-```
-Image of app in use here!!!
-```
+<img src="assets/Screenshot_1.png" alt="alt text" width="250">
 
 ## Training Data Generation
 
@@ -26,9 +24,7 @@ Training data was generated synthetically from 3d models following these steps:
 
 Here is an example of our data:
 
-```
-Image Here!!!
-```
+<img src="assets/random_0122-r1.png" alt="alt text" width="300">
 
 Training data was augmented by official Lego photos of every minifigure from (need to check date) to present.
 
@@ -47,16 +43,6 @@ After training, the model was converted into the tensoflow-lite (.tflite) format
 
 ## Mobile App
 
-We used a MaterialUI template for our android app that can be found at this repo: 
+We used a Tensorflow app template for our android app that can be found at this repo: 
 
-You can install the app by:
-1. Download the package file to your android phone from (this url)
-2. Enable unkown apps by:
-    - Step 1
-    - Step n
-3. Install the app
-4. Enjoy!
-
-```
-Another image of app in use here!!!
-```
+<img src="assets/Screenshot_3.png" alt="alt text" width="250">

@@ -1,0 +1,64 @@
+
+# training
+
+# screen
+
+source activate tensorflow_p36
+cd /home/ubuntu/tf_models/research
+
+python object_detection/model_main.py \
+    --pipeline_config_path=/home/ubuntu/training/ssd_mobilenet_v3_transfer/pipeline_transfer.config \
+    --model_dir=/home/ubuntu/training/ssd_mobilenet_v3_transfer \
+    --num_train_steps=50000 \
+    --sample_1_of_n_eval_examples=10 \
+    --alsologtostderr
+
+
+
+# conversion:
+
+cd /home/ubuntu/tf_models/research
+source activate tensorflow_p36
+python object_detection/export_tflite_ssd_graph.py \
+ --pipeline_config_path=/home/ubuntu/training/ssd_mobilenet_v3_transfer/pipeline_transfer.config \
+ --trained_checkpoint_prefix=/home/ubuntu/training/ssd_mobilenet_v3_transfer/checkpoint \
+ --output_directory=/home/ubuntu/training/conversion_output/ \
+ --add_postprocessing_op=true
+
+conda deactivate
+source activate tensorflow_build
+cd /home/ubuntu/tensorflow
+
+bazel run tensorflow/lite/toco
+
+# if it's been trained into quantized
+bazel run tensorflow/lite/toco:toco -- \
+ --input_file=/home/ubuntu/training/conversion_output/tflite_graph.pb \
+ --output_file=/home/ubuntu/training/conversion_output/detect.tflite \
+ --input_shapes=1,320,320,3 \
+ --input_arrays=normalized_input_image_tensor \
+ --output_arrays='TFLite_Detection_PostProcess','TFLite_Detection_PostProcess:1','TFLite_Detection_PostProcess:2','TFLite_Detection_PostProcess:3' \
+ --inference_type=QUANTIZED_UINT8 --mean_values=128 --std_values=128 --change_concat_input_ranges=false --allow_custom_ops
+
+# if you haven't run this yet
+# bazel run tensorflow/lite/toco
+
+# if it's still a float
+bazel-bin/tensorflow/lite/toco/toco \
+ --input_file=/home/ubuntu/training/conversion_output/tflite_graph.pb \
+ --output_file=/home/ubuntu/training/conversion_output/detect.tflite \
+ --input_shapes=1,320,320,3 \
+ --input_arrays=normalized_input_image_tensor \
+ --output_arrays='TFLite_Detection_PostProcess','TFLite_Detection_PostProcess:1','TFLite_Detection_PostProcess:2','TFLite_Detection_PostProcess:3'  \
+ --inference_type=FLOAT \
+ --allow_custom_ops=true \
+ --post_training_quantize=true
+
+
+ bazel-bin/tensorflow/lite/toco/toco \
+ '--input_file=/home/ubuntu/training/conversion_output/tflite_graph.pb' \
+ '--output_file=/home/ubuntu/training/conversion_output/detect.tflite' \
+ '--input_shapes=1,320,320,3' \
+ '--input_arrays=normalized_input_image_tensor' \
+ '--output_arrays=TFLite_Detection_PostProcess,TFLite_Detection_PostProcess:1,TFLite_Detection_PostProcess:2,TFLite_Detection_PostProcess:3' \
+ '--inference_type=FINFO'

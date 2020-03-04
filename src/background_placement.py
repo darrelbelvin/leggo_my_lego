@@ -146,17 +146,23 @@ def make_combined_images(transparent_path, bg_path, output_path):
     for i, row in metadata.iterrows():
         foreground = io.imread(transparent_path + row['filename'])
         bboxes = row['bboxes']
+        bboxes[0] = row['filename']
 
         foreground, bboxes = scale_with_bbox(foreground, bboxes)
-        combined, bboxes = place_on_bg(foreground, get_random_background(500, 500, bg_path), bboxes)
+        combined, bboxes = place_on_bg(foreground, get_random_background(416, 416, bg_path), bboxes)
 
         anno_lines.append(', '.join([str(x) for x in bboxes]) + '\n')
 
         io.imwrite(output_path + row['filename'], combined)
+        row['bboxes'] = bboxes
+        row['anno_line'] = anno_lines[-1]
 
+        print(f'{i} out of {len(metadata)}', end='\r')
         #bboxes = np.array(bboxes[1:]).reshape(-1,5)
         #img_box = draw_bbox(foreground[...,:3].copy(), bboxes, classes=classes, show_label=True, probability=False)
     #print(anno_lines)
+    pickle.dump(metadata, open(output_path + 'metadata.pkl', 'wb'))
+
     with open(output_path + 'annotations.txt', 'w') as file:
         file.writelines(anno_lines)
 
