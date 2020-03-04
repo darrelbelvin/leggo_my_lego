@@ -1,4 +1,4 @@
-# leggo_my_legs
+# leg-go
 
 Leggo my Legs is an android app that detects Lego minifigures utilizing a neural network. I used transfer learning to adjust the model to our training data.
 
