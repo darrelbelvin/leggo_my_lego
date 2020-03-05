@@ -135,3 +135,6 @@ tf_android_example/
 mlkit-material-android/
 .vscode/settings.json
 src/object_detection
+
+# Local Netlify folder
+.netlify
